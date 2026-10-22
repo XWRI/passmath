@@ -1,0 +1,845 @@
+<title>PassMath</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Which ski pass actually pays off for your season? Enter where you live and how many days you ride, and see the math.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: two-pane tool. Left "your season" form (sticky on desktop), right results: lift-ticket winner, ranked options with their math, what-ifs, trip alternatives, resort comparison. Stacks on phones. */
+:root {
+  --snow: #F1F4F8;
+  --panel: #FFFFFF;
+  --ink: #13202C;
+  --muted: #566778;
+  --line: #D5DDE6;
+  --accent: #1C58C4;
+  --accent-soft: #E3ECFB;
+  --win: #F4C542;
+  --win-ink: #2A2100;
+  --good: #1E7F47;
+  --warn: #9A5B00;
+  --bar: #B8C6D6;
+  --display: "Big Shoulders Display", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --snow: #0D141B; --panel: #151F29; --ink: #E5ECF3; --muted: #94A5B6; --line: #283543;
+    --accent: #79A8FF; --accent-soft: #1B2A40; --win: #E8B93B; --win-ink: #1C1500;
+    --good: #5BCB8B; --warn: #F0B357; --bar: #3A4A5B; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --snow: #0D141B; --panel: #151F29; --ink: #E5ECF3; --muted: #94A5B6; --line: #283543;
+  --accent: #79A8FF; --accent-soft: #1B2A40; --win: #E8B93B; --win-ink: #1C1500;
+  --good: #5BCB8B; --warn: #F0B357; --bar: #3A4A5B; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--snow); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 1160px; margin: 0 auto; display: grid; gap: 28px; }
+header { display: grid; gap: 10px; }
+.brand { font-family: var(--display); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; font-size: 15px; color: var(--accent); }
+h1 { font-family: var(--display); font-weight: 800; font-size: clamp(34px, 6vw, 58px); line-height: .98; margin: 0; text-wrap: balance; max-width: 16ch; }
+.sub { color: var(--muted); max-width: 62ch; margin: 0; }
+.season { display: inline-flex; flex-wrap: wrap; gap: 8px; align-items: center; font-family: var(--mono); font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.season b { color: var(--ink); font-weight: 600; }
+.grid { display: grid; grid-template-columns: minmax(0, 360px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (min-width: 861px) { #form { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); max-height: calc(100vh - 32px); overflow-y: auto; } }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 20px; min-width: 0; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 20px; display: grid; gap: 16px; min-width: 0; }
+.panel h2 { font-family: var(--display); font-weight: 800; text-transform: uppercase; letter-spacing: .04em; font-size: 21px; margin: 0; line-height: 1.1; }
+.panel h2 + .hint { margin-top: -8px; }
+.field { display: grid; gap: 6px; }
+.field label, .lbl { font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+select, input[type=number] {
+  font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px;
+  padding: 9px 10px; width: 100%; min-width: 0;
+}
+input[type=range] { width: 100%; accent-color: var(--accent); }
+select:focus-visible, input:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.rangeval { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; }
+.trips { display: grid; gap: 8px; }
+.trip { display: grid; grid-template-columns: minmax(0, 1fr) 70px 34px; gap: 8px; align-items: center; }
+button { font: inherit; cursor: pointer; }
+.btn { border: 1px solid var(--line); background: transparent; color: var(--ink); border-radius: 6px; padding: 8px 12px; font-weight: 500; }
+.btn:hover { border-color: var(--accent); color: var(--accent); }
+.btn-primary { background: var(--accent); color: var(--panel); border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { color: var(--panel); filter: brightness(1.08); }
+.linkbtn { border: 0; background: none; color: var(--accent); padding: 0; font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.x { border: 1px solid var(--line); background: transparent; color: var(--muted); border-radius: 6px; height: 38px; }
+.x:hover { color: var(--ink); border-color: var(--ink); }
+.example { font-size: 12px; font-family: var(--mono); color: var(--muted); background: var(--accent-soft); border-radius: 4px; padding: 6px 8px; }
+
+/* winner: a lift ticket */
+.ticket { position: relative; background: var(--win); color: var(--win-ink); border-radius: 10px; padding: 22px 22px 22px 34px; display: grid; gap: 8px; }
+.ticket::before {
+  content: ""; position: absolute; left: 12px; top: 10px; bottom: 10px; width: 6px;
+  background: radial-gradient(circle, var(--panel) 2.5px, transparent 3px) 0 0 / 6px 12px repeat-y;
+}
+.ticket .tag { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; }
+.ticket .name { font-family: var(--display); font-weight: 800; font-size: clamp(30px, 5vw, 46px); line-height: 1; text-transform: uppercase; text-wrap: balance; }
+.ticket .nums { display: flex; flex-wrap: wrap; gap: 6px 26px; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.ticket .nums span { display: grid; }
+.ticket .nums strong { font-size: 26px; font-weight: 600; line-height: 1.15; }
+.ticket .nums small { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; }
+.ticket .why { font-size: 14px; max-width: 62ch; margin: 0; }
+
+.rank { display: grid; }
+.opt { padding: 14px 0; border-top: 1px solid var(--line); display: grid; gap: 6px; }
+.opt:first-child { border-top: 0; padding-top: 0; }
+.opt-head { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+.opt .pos { font-family: var(--mono); color: var(--muted); font-size: 13px; }
+.opt .pn { font-weight: 600; }
+.opt .cost { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; font-weight: 600; white-space: nowrap; }
+.opt .per { color: var(--muted); font-size: 13px; font-weight: 400; }
+.opt .sub2 { padding-left: 36px; display: grid; gap: 6px; min-width: 0; }
+.opt, details.math, .alt, .altlist, .rescards { min-width: 0; }
+@media (max-width: 480px) { .opt .sub2 { padding-left: 0; } }
+.opt .detail { font-size: 13px; color: var(--muted); }
+.barwrap { height: 6px; background: var(--snow); border-radius: 3px; overflow: hidden; }
+.barfill { height: 100%; background: var(--bar); border-radius: 3px; }
+.opt.best .barfill { background: var(--win); }
+.chip { display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: .03em; padding: 0 6px; border-radius: 3px; border: 1px solid currentColor; margin-left: 6px; vertical-align: 1px; white-space: nowrap; font-weight: 400; }
+.chip.warn { color: var(--warn); }
+.chip.good { color: var(--good); }
+.chip.muted { color: var(--muted); }
+details.math summary { cursor: pointer; font-size: 13px; color: var(--accent); font-weight: 500; width: fit-content; }
+details.math[open] summary { margin-bottom: 8px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+td.n, th.n { text-align: right; font-family: var(--mono); }
+tr.sum td { border-bottom: 0; font-weight: 600; }
+tr.sum.first td { border-top: 2px solid var(--line); }
+.sumline { font-size: 13px; margin: 8px 0 0; }
+.showall { justify-self: start; }
+
+.days { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.day { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; display: grid; gap: 2px; }
+.day.cur { border-color: var(--win); box-shadow: inset 0 0 0 1px var(--win); }
+.day .d { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.day .w { font-weight: 600; font-size: 13px; line-height: 1.25; }
+.day .p { font-family: var(--mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.alts { display: grid; gap: 14px; }
+.alt { display: grid; gap: 6px; }
+.alt h3 { margin: 0; font-size: 15px; }
+.altlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+
+.rc { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 4px; align-content: start; }
+.rc .top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.rc .nm { font-weight: 600; }
+.rc .hrs { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
+.rc .stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-family: var(--mono); font-size: 12px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.rc .stats span { color: var(--muted); }
+.rc .note { font-size: 13px; color: var(--muted); }
+.rc .ps { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+.rc.off { opacity: .6; }
+.rescards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; justify-content: space-between; }
+.toolbar select { width: auto; padding: 6px 8px; font-size: 13px; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.msg { font-size: 13px; color: var(--good); }
+.capture { display: grid; gap: 10px; }
+.capture form { display: flex; gap: 8px; flex-wrap: wrap; }
+.capture input[type=email] { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; }
+.how { display: grid; gap: 8px; font-size: 14px; }
+.how ol { max-width: 75ch; }
+.how ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+.notes { font-size: 12px; color: var(--muted); display: grid; gap: 4px; max-width: 75ch; }
+.notes p { margin: 0; }
+.legend { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: no-preference) { .barfill { transition: width .35s ease; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">PassMath</div>
+    <h1>Which pass actually pays off for your season?</h1>
+    <p class="sub">Tell it where you live and how you plan to ride. It prices every pass and pass combo against your actual days, shows the math line by line, and points out cheaper trips and resorts you're not using.</p>
+    <div class="season"><b>2026–27 season</b> · passes stop selling in early December</div>
+  </header>
+
+  <div class="grid">
+    <form class="panel" id="form" autocomplete="off">
+      <h2>Your season</h2>
+      <div class="example" id="exampleNote">Example filled in: a Denver snowboarder with a Jackson Hole trip. Change anything.</div>
+
+      <div class="field">
+        <label for="home">Where you live</label>
+        <select id="home"></select>
+      </div>
+
+      <div class="field">
+        <label for="drive">Longest drive for a day trip</label>
+        <input type="range" id="drive" min="1" max="5" step="0.5" value="2.5">
+        <span class="rangeval" id="driveVal"></span>
+      </div>
+
+      <div class="row2">
+        <div class="field">
+          <label for="localDays">Local days</label>
+          <input type="number" id="localDays" min="0" max="150" value="12">
+        </div>
+        <div class="field">
+          <label for="holidayDays">Of all days, holidays</label>
+          <input type="number" id="holidayDays" min="0" max="60" value="2">
+        </div>
+      </div>
+      <p class="hint">Holidays means Christmas week, MLK weekend and Presidents' weekend, when the cheaper passes black out.</p>
+
+      <div class="field">
+        <span class="lbl">Trips</span>
+        <div class="trips" id="trips"></div>
+        <div><button type="button" class="btn" id="addTrip">Add a trip</button></div>
+      </div>
+
+      <div class="field">
+        <label for="age">Your age</label>
+        <select id="age">
+          <option value="a">31 or older</option>
+          <option value="m">23 to 30</option>
+          <option value="y">13 to 22</option>
+        </select>
+      </div>
+
+      <label class="check" for="board"><input type="checkbox" id="board" checked> I snowboard (skip skiers-only resorts)</label>
+    </form>
+
+    <div class="col">
+      <section class="panel" aria-live="polite">
+        <div id="winner"></div>
+        <div class="legend">Season cost = pass price + day tickets you'd still buy. Ranked cheapest first.</div>
+        <div class="rank" id="rank"></div>
+        <button type="button" class="linkbtn showall" id="showAll"></button>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="share">Copy my result</button>
+          <button type="button" class="btn" id="pro">Plan my trips with Pro</button>
+          <span class="msg" id="shareMsg" hidden></span>
+        </div>
+      </section>
+
+      <section class="panel" id="whatifPanel">
+        <h2>If you ride more or less</h2>
+        <p class="hint">Same trips, different number of local days. The best pass changes as your days go up.</p>
+        <div class="days" id="whatif"></div>
+        <p class="sumline" id="breakeven"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Cheaper trips and other options</h2>
+        <div class="alts" id="alts"></div>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <h2 id="resTitle">Resorts within your drive</h2>
+          <label class="hint" for="sortBy">Sort by
+            <select id="sortBy">
+              <option value="hrs">Drive time</option>
+              <option value="snow">Snowfall</option>
+              <option value="acres">Size</option>
+              <option value="vert">Vertical</option>
+              <option value="t">Day ticket</option>
+            </select>
+          </label>
+        </div>
+        <div class="rescards" id="near"></div>
+      </section>
+
+      <section class="panel">
+        <div class="capture" id="capture">
+          <h2 id="captureTitle">Get a reminder before passes stop selling</h2>
+          <form id="emailForm">
+            <input type="email" id="email" placeholder="you@example.com" required aria-labelledby="captureTitle">
+            <button type="submit" class="btn btn-primary">Remind me</button>
+          </form>
+          <span class="msg" id="emailMsg" hidden></span>
+        </div>
+      </section>
+
+      <section class="panel how">
+        <h2>How the math works</h2>
+        <ol>
+          <li>Trips are counted first, at the resort you picked. Each day is covered if your pass includes that resort, the day limit isn't used up, and it isn't a blacked-out holiday. Otherwise you pay that resort's day ticket.</li>
+          <li>Local days go to the nearest resort your pass covers with no day limit, then to resorts with limited days. If none is left, you pay for the cheapest day ticket within your drive.</li>
+          <li>Holiday days are counted against local days first. Epic Local blacks out holidays at Vail, Beaver Creek, Park City, Heavenly, Northstar, Kirkwood, Stowe and Whistler. Ikon Base blacks out everywhere except Arapahoe Basin.</li>
+          <li>Combos (like Epic Local + Ikon Base) use whichever pass covers each day. Their price is both passes added together.</li>
+          <li>Savings = what all your days would cost in day tickets, minus the season cost of that option.</li>
+        </ol>
+      </section>
+
+      <div class="notes">
+        <p>Pass prices are the listed 2026–27 adult rates as of October 2026, and they rise until sales close. Day-ticket prices are rough online estimates; walk-up prices are often higher, so real savings are usually bigger. Resort stats are approximate. Drive times are estimated from distance.</p>
+        <p>Indy Pass is sold out for 2026–27, so it isn't compared. Check each pass's official site before you buy.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ---- config: wire these up when deploying ----
+const EMAIL_ENDPOINT = ""; // e.g. a Formspree/Buttondown/ConvertKit form URL. Empty = preview, nothing is saved.
+
+function track(name, props) {
+  try { if (window.plausible) window.plausible(name, { props: props || {} }); } catch (e) {}
+}
+
+// ---- data ----
+const CITIES = [
+  ["Seattle, WA",47.61,-122.33],["Portland, OR",45.52,-122.68],["Bend, OR",44.06,-121.31],["Spokane, WA",47.66,-117.43],
+  ["Vancouver, BC",49.28,-123.12],["Calgary, AB",51.05,-114.07],["Boise, ID",43.62,-116.21],["Bozeman, MT",45.68,-111.04],
+  ["San Francisco, CA",37.77,-122.42],["Sacramento, CA",38.58,-121.49],["Reno, NV",39.53,-119.81],["Los Angeles, CA",34.05,-118.24],
+  ["San Diego, CA",32.72,-117.16],["Las Vegas, NV",36.17,-115.14],["Phoenix, AZ",33.45,-112.07],["Salt Lake City, UT",40.76,-111.89],
+  ["Denver, CO",39.74,-104.99],["Boulder, CO",40.01,-105.27],["Colorado Springs, CO",38.83,-104.82],["Albuquerque, NM",35.08,-106.65],
+  ["Minneapolis, MN",44.98,-93.27],["Chicago, IL",41.88,-87.63],["Detroit, MI",42.33,-83.05],["Pittsburgh, PA",40.44,-80.0],
+  ["Dallas, TX",32.78,-96.8],["Austin, TX",30.27,-97.74],["Houston, TX",29.76,-95.37],["Atlanta, GA",33.75,-84.39],
+  ["Washington, DC",38.91,-77.04],["Philadelphia, PA",39.95,-75.17],["New York, NY",40.71,-74.01],["Boston, MA",42.36,-71.06],
+  ["Burlington, VT",44.48,-73.21],["Portland, ME",43.66,-70.26],["Toronto, ON",43.65,-79.38],["Montreal, QC",45.5,-73.57]
+];
+
+// a: access per pass. "U" = unlimited, number = day limit. Missing = not on that pass.
+// t: rough day-ticket price (USD, bought online). s: [vertical ft, acres, avg snowfall in, what it's known for, "ski" if skiers only].
+// g: shared day-limit group on Epic Local.
+const R = (id, name, region, lat, lon, t, a, s, g) => ({ id, name, region, lat, lon, t, a, vert: s[0], acres: s[1], snow: s[2], note: s[3], skiOnly: s[4] === "ski", g });
+const RESORTS = [
+  // Vail Resorts
+  R("vail","Vail","Colorado",39.606,-106.355,289,{epic:"U",local:10},[3450,5317,354,"Back Bowls and a huge groomer network"],"vbw"),
+  R("beaver","Beaver Creek","Colorado",39.604,-106.522,279,{epic:"U",local:10},[4040,2082,323,"Uncrowded groomers, upscale village"],"vbw"),
+  R("breck","Breckenridge","Colorado",39.480,-106.067,259,{epic:"U",local:"U"},[3398,2908,353,"Top-ranked parks, high alpine bowls"]),
+  R("keystone","Keystone","Colorado",39.605,-105.954,209,{epic:"U",local:"U"},[3128,3148,235,"Night riding and the A51 terrain park"]),
+  R("cb","Crested Butte","Colorado",38.899,-106.965,189,{epic:"U",local:"U"},[3062,1547,233,"Extreme steeps, small-town feel"]),
+  R("telluride","Telluride","Colorado",37.936,-107.846,219,{epic:7},[4425,2000,280,"Steep chutes and huge scenery"]),
+  R("pc","Park City","Utah",40.651,-111.508,279,{epic:"U",local:"U"},[3226,7300,355,"Largest US resort, 30 min from SLC airport"]),
+  R("heavenly","Heavenly","Tahoe",38.935,-119.940,229,{epic:"U",local:"U"},[3500,4800,360,"Lake Tahoe views, tree runs"]),
+  R("northstar","Northstar","Tahoe",39.274,-120.121,219,{epic:"U",local:"U"},[2280,3170,350,"Strong parks, family groomers"]),
+  R("kirkwood","Kirkwood","Tahoe",38.685,-120.065,159,{epic:"U",local:"U"},[2000,2300,354,"Deepest snow at Tahoe, steep terrain"]),
+  R("stevens","Stevens Pass","Pacific Northwest",47.745,-121.089,139,{epic:"U",local:"U"},[1800,1125,460,"Deep PNW snow, night riding"]),
+  R("whistler","Whistler Blackcomb","British Columbia",50.115,-122.949,229,{epic:"U",local:10},[5280,8171,448,"Biggest resort in North America"],"vbw"),
+  R("stowe","Stowe","Vermont",44.530,-72.781,189,{epic:"U",local:"U"},[2360,485,314,"Classic East Coast steeps"]),
+  R("okemo","Okemo","Vermont",43.401,-72.717,159,{epic:"U",local:"U"},[2200,667,200,"Great grooming, family-friendly"]),
+  R("mtsnow","Mount Snow","Vermont",42.960,-72.920,149,{epic:"U",local:"U"},[1700,600,156,"Carinthia, an all-park mountain face"]),
+  R("hunter","Hunter Mountain","New York",42.203,-74.226,139,{epic:"U",local:"U"},[1600,320,125,"Closest big hill to NYC"]),
+  R("attitash","Attitash and Wildcat","New Hampshire",44.083,-71.229,109,{epic:"U",local:"U"},[2112,536,160,"Two mountains, Mt. Washington views"]),
+  R("sunapee","Mount Sunapee","New Hampshire",43.331,-72.081,109,{epic:"U",local:"U"},[1510,233,110,"Easy Boston day trip"]),
+  R("sevensprings","Seven Springs","Pennsylvania",40.023,-79.297,109,{epic:"U",local:"U"},[750,285,135,"Big parks, Pittsburgh day trip"]),
+  R("afton","Afton Alps","Midwest",44.858,-92.789,79,{epic:"U",local:"U"},[350,300,50,"Twin Cities local hill with parks"]),
+  R("wilmot","Wilmot","Midwest",42.507,-88.183,79,{epic:"U",local:"U"},[230,120,40,"Chicago's closest hill, good park"]),
+  R("mtbrighton","Mt. Brighton","Midwest",42.540,-83.810,69,{epic:"U",local:"U"},[230,130,40,"Detroit local hill, night riding"]),
+  // Alterra (Ikon unlimited)
+  R("winterpark","Winter Park","Colorado",39.887,-105.763,209,{ikon:"U",base:"U"},[3060,3081,326,"Mary Jane bumps, big parks, no I-70 tunnel"]),
+  R("copper","Copper Mountain","Colorado",39.502,-106.151,209,{ikon:"U",base:"U"},[2738,2507,305,"Terrain sorted by ability, Woodward park"]),
+  R("eldora","Eldora","Colorado",39.937,-105.583,149,{ikon:"U",base:"U"},[1600,680,300,"Closest to Boulder, skips I-70 traffic"]),
+  R("steamboat","Steamboat","Colorado",40.457,-106.805,239,{ikon:"U",base:"U"},[3668,3741,349,"Champagne powder and tree riding"]),
+  R("abasin","Arapahoe Basin","Colorado",39.642,-105.872,149,{ikon:7,base:"U"},[2530,1428,350,"Long season, steep alpine terrain"]),
+  R("mammoth","Mammoth Mountain","Eastern Sierra",37.651,-119.027,219,{ikon:"U",base:"U"},[3100,3500,400,"Huge parks, season into June"]),
+  R("june","June Mountain","Eastern Sierra",37.768,-119.090,119,{ikon:"U",base:"U"},[2590,1500,250,"Uncrowded little sister to Mammoth"]),
+  R("palisades","Palisades Tahoe","Tahoe",39.197,-120.235,239,{ikon:"U",base:"U"},[2850,6000,400,"Legendary steeps and freeride"]),
+  R("bigbear","Big Bear Mountain","Southern California",34.236,-116.889,119,{ikon:"U",base:"U"},[1665,467,100,"Top-tier parks, LA day trip"]),
+  R("solitude","Solitude","Utah",40.620,-111.592,169,{ikon:"U",base:"U"},[2494,1200,500,"Uncrowded Wasatch powder"]),
+  R("crystal","Crystal Mountain","Pacific Northwest",46.935,-121.475,169,{ikon:"U",base:"U"},[3100,2600,486,"Rainier views, big terrain"]),
+  R("snoqualmie","Summit at Snoqualmie","Pacific Northwest",47.424,-121.414,99,{ikon:"U",base:"U"},[2280,1981,427,"Seattle's night-riding spot"]),
+  R("stratton","Stratton","Vermont",43.113,-72.908,169,{ikon:"U",base:"U"},[2003,670,180,"Where Burton started, first to allow snowboards"]),
+  R("sugarbush","Sugarbush","Vermont",44.136,-72.894,159,{ikon:"U",base:"U",mc:2},[2600,581,269,"Vermont tree runs and steeps"]),
+  R("snowshoe","Snowshoe","West Virginia",38.410,-79.994,129,{ikon:"U",base:"U"},[1500,251,180,"Biggest mountain in the Mid-Atlantic"]),
+  R("tremblant","Tremblant","Quebec",46.209,-74.585,129,{ikon:"U",base:"U"},[2116,755,158,"Ski village, easy from Montreal"]),
+  R("bluemtn","Blue Mountain","Ontario",44.501,-80.316,89,{ikon:"U",base:"U"},[720,364,110,"Toronto's go-to hill"]),
+  // Ikon partners
+  R("deervalley","Deer Valley","Utah",40.637,-111.478,279,{ikon:7},[3000,2026,300,"Luxury groomers","ski"]),
+  R("alta","Alta","Utah",40.588,-111.638,179,{ikon:7,mc:2},[2538,2614,547,"Legendary powder","ski"]),
+  R("snowbird","Snowbird","Utah",40.581,-111.657,199,{ikon:7,base:5,mc:2},[3240,2500,500,"Steep, deep, season into May"]),
+  R("brightonut","Brighton","Utah",40.598,-111.583,139,{ikon:7,base:5},[1745,1050,500,"Snowboard-friendly parks, night riding"]),
+  R("snowbasin","Snowbasin","Utah",41.216,-111.857,189,{ikon:7},[2959,3000,300,"Uncrowded, Olympic downhill venue"]),
+  R("aspen","Aspen Snowmass","Colorado",39.209,-106.950,229,{ikon:7,base:5,mc:2},[4406,5527,300,"Four mountains; Base covers Snowmass only"]),
+  R("jackson","Jackson Hole","Wyoming",43.588,-110.828,229,{ikon:7,mc:2},[4139,2500,459,"Corbet's Couloir, steep and deep"]),
+  R("bigsky","Big Sky","Montana",45.284,-111.401,239,{ikon:7,base:5,mc:2},[4350,5850,400,"Lone Peak, huge and uncrowded"]),
+  R("sunvalley","Sun Valley","Idaho",43.697,-114.351,199,{ikon:7,mc:2},[3400,2054,220,"Long, consistent fall line"]),
+  R("taos","Taos","New Mexico",36.596,-105.454,139,{ikon:7,base:5,mc:2},[3281,1294,300,"Steep hike-to terrain"]),
+  R("bachelor","Mt. Bachelor","Oregon",43.979,-121.688,139,{ikon:7,base:5},[3365,4323,462,"Ride 360 degrees off the summit"]),
+  R("revelstoke","Revelstoke","British Columbia",50.958,-118.163,159,{ikon:7,base:5,mc:2},[5620,3121,400,"Most vertical in North America"]),
+  R("sunshine","Banff Sunshine","Alberta",51.115,-115.763,169,{ikon:7,base:5,mc:2},[3514,3358,360,"Dry snow, Delirium Dive"]),
+  R("louise","Lake Louise","Alberta",51.442,-116.162,169,{ikon:7,base:5,mc:2},[3250,4200,180,"Huge terrain, Rockies views"]),
+  R("killington","Killington","Vermont",43.626,-72.797,189,{ikon:7,base:5},[3050,1509,250,"Biggest in the East, long season"]),
+  R("sundayriver","Sunday River","Maine",44.473,-70.857,139,{ikon:7,base:5},[2340,870,167,"Eight peaks, strong snowmaking"]),
+  R("sugarloaf","Sugarloaf","Maine",45.031,-70.313,139,{ikon:7,base:5,mc:2},[2820,1240,200,"Only lift-served above-treeline riding in the East"]),
+  R("loon","Loon Mountain","New Hampshire",44.036,-71.621,129,{ikon:7,base:5},[2100,370,160,"White Mountains, good parks"]),
+  R("windham","Windham","New York",42.294,-74.258,109,{ikon:7,base:5},[1600,285,110,"NYC weekend hill with parks"]),
+  R("boyne","Boyne Mountain","Midwest",45.164,-84.931,99,{ikon:7,base:5},[500,415,140,"Michigan's biggest resort"]),
+  R("lutsen","Lutsen","Midwest",47.663,-90.718,99,{ikon:7,base:5},[1088,1000,120,"Lake Superior views, Midwest's biggest"]),
+  // Mountain Collective only / independents
+  R("targhee","Grand Targhee","Wyoming",43.788,-110.958,149,{mc:2},[2270,2602,500,"Deep snow, uncrowded"]),
+  R("sugarbowl","Sugar Bowl","Tahoe",39.300,-120.334,179,{mc:2},[1500,1650,500,"Deep Tahoe snow, closest to the Bay"]),
+  R("loveland","Loveland","Colorado",39.680,-105.898,119,{},[2210,1800,422,"Cheap, close, high alpine"]),
+  R("baker","Mt. Baker","Pacific Northwest",48.857,-121.665,89,{},[1500,1000,640,"Record snowfall, home of the Banked Slalom"]),
+  R("meadows","Mt. Hood Meadows","Oregon",45.331,-121.665,139,{},[2777,2150,430,"Mt. Hood's most varied terrain"])
+];
+const BY_ID = Object.fromEntries(RESORTS.map(r => [r.id, r]));
+
+// Epic Local: holiday restrictions at these resorts. Ikon Base: blackouts everywhere except A-Basin.
+const LOCAL_HOLIDAY = new Set(["pc","northstar","stowe","beaver","heavenly","kirkwood","vail","whistler"]);
+function holidayBlocked(k, r) {
+  if (k === "local") return LOCAL_HOLIDAY.has(r.id);
+  if (k === "base") return r.id !== "abasin";
+  return false;
+}
+
+const PRICE = {
+  epic: age => age === "a" ? 1169 : 935,      // Epic: 20% off ages 13-30
+  local: age => age === "a" ? 869 : 695,
+  ikon: age => age === "y" ? 1129 : 1529,     // Ikon young adult: 13-22
+  base: age => age === "y" ? 799 : 1099,
+  mc: () => 669
+};
+const SHORT = { epic: "Epic", local: "Epic Local", ikon: "Ikon", base: "Ikon Base", mc: "Mountain Collective" };
+const TAG = { epic: "Epic", local: "Local", ikon: "Ikon", base: "Base", mc: "MC" };
+const OPTIONS = [
+  { k: "none", keys: [], name: "No pass, buy day tickets" },
+  { k: "epic", keys: ["epic"], name: "Epic Pass" },
+  { k: "local", keys: ["local"], name: "Epic Local Pass" },
+  { k: "ikon", keys: ["ikon"], name: "Ikon Pass" },
+  { k: "base", keys: ["base"], name: "Ikon Base Pass" },
+  { k: "mc", keys: ["mc"], name: "Mountain Collective" },
+  { k: "local+base", keys: ["local", "base"], name: "Epic Local + Ikon Base" },
+  { k: "local+mc", keys: ["local", "mc"], name: "Epic Local + Mountain Collective" },
+  { k: "base+mc", keys: ["base", "mc"], name: "Ikon Base + Mountain Collective" },
+  { k: "epic+mc", keys: ["epic", "mc"], name: "Epic + Mountain Collective" }
+];
+
+// ---- math ----
+function driveHours(a, b) {
+  const rad = x => x * Math.PI / 180;
+  const dLat = rad(b.lat - a.lat), dLon = rad(b.lon - a.lon);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLon / 2) ** 2;
+  const km = 6371 * 2 * Math.asin(Math.sqrt(h));
+  return km * 1.3 / 80; // road detour factor, average mountain driving speed
+}
+
+function nearbyResorts(home, maxHrs, board) {
+  if (!home) return [];
+  return RESORTS.map(r => ({ r, hrs: driveHours(home, r) }))
+    .filter(x => x.hrs <= maxHrs && !(board && x.r.skiOnly))
+    .sort((a, b) => a.hrs - b.hrs);
+}
+
+function evaluate(opt, s) {
+  const caps = {};
+  const rows = {};   // per resort: { r, days, covered, paid, value, by:{}, reasons:Set }
+  const notes = new Set();
+  let paid = 0, paidDays = 0, covered = 0, coveredValue = 0, reasons = [];
+
+  const row = r => rows[r.id] || (rows[r.id] = { r, days: 0, covered: 0, paid: 0, value: 0, by: {}, reasons: new Set() });
+
+  function take(r, holiday) {
+    if (s.board && r.skiOnly) { reasons.push("skiers only"); return false; }
+    for (const k of opt.keys) {
+      const v = r.a[k];
+      if (!v) continue;
+      if (holiday && holidayBlocked(k, r)) { reasons.push("holiday blackout"); continue; }
+      if (v !== "U") {
+        const key = k + ":" + ((k === "local" && r.g) ? r.g : r.id);
+        if (caps[key] === undefined) caps[key] = v;
+        if (caps[key] <= 0) { reasons.push("day limit used up"); continue; }
+        caps[key]--;
+      }
+      const w = row(r); w.days++; w.covered++; w.value += r.t; w.by[k] = (w.by[k] || 0) + 1;
+      covered++; coveredValue += r.t;
+      return true;
+    }
+    return false;
+  }
+  // Only flag a blackout or limit when it actually made you buy a ticket.
+  function pay(r) {
+    const w = row(r); w.days++; w.paid += r.t; w.value += r.t;
+    reasons.forEach(x => { notes.add(x); w.reasons.add(x); });
+    if (!reasons.length && opt.keys.length) w.reasons.add("not on this pass");
+    paid += r.t; paidDays++;
+  }
+
+  const hLocal = Math.min(s.holidayDays, s.localDays);
+  let hTrip = s.holidayDays - hLocal;
+
+  for (const trip of s.trips) {
+    const r = BY_ID[trip.id];
+    if (!r) continue;
+    for (let d = 0; d < trip.days; d++) {
+      const hol = hTrip > 0; if (hol) hTrip--;
+      reasons = [];
+      if (!take(r, hol)) pay(r);
+    }
+  }
+
+  const near = s.near;
+  if (near.length && s.localDays > 0) {
+    const cheapest = near.reduce((m, x) => x.r.t < m.t ? x.r : m, near[0].r);
+    // Prefer unlimited resorts (nearest first), then limited ones, so day limits are saved for when they're needed.
+    const has = (x, test) => opt.keys.some(k => test(x.r.a[k]));
+    const order = near.filter(x => has(x, v => v === "U")).concat(near.filter(x => !has(x, v => v === "U") && has(x, v => typeof v === "number")));
+    for (let d = 0; d < s.localDays; d++) {
+      const hol = d < hLocal;
+      let ok = false;
+      reasons = [];
+      for (const x of order) { if (take(x.r, hol)) { ok = true; break; } }
+      if (!ok) pay(cheapest);
+    }
+  }
+
+  const passes = opt.keys.map(k => ({ k, price: PRICE[k](s.age) }));
+  const price = passes.reduce((a, p) => a + p.price, 0);
+  const total = price + paid;
+  const days = covered + paidDays;
+  return { opt, passes, price, paid, paidDays, covered, coveredValue, total, days, perDay: days ? total / days : 0, rows, notes };
+}
+
+function rankAll(s) { return OPTIONS.map(o => evaluate(o, s)).sort((a, b) => a.total - b.total || a.opt.keys.length - b.opt.keys.length); }
+
+// ---- UI ----
+const $ = id => document.getElementById(id);
+const money = n => (n < 0 ? "-$" : "$") + Math.abs(Math.round(n)).toLocaleString("en-US");
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+let trips = [{ id: "jackson", days: 4 }];
+let showAll = false;
+
+function fillHome() {
+  const sel = $("home");
+  sel.innerHTML = '<option value="">No home mountain, trips only</option>' +
+    CITIES.map((c, i) => `<option value="${i}">${c[0]}</option>`).join("");
+  sel.value = String(CITIES.findIndex(c => c[0] === "Denver, CO"));
+}
+
+function resortOptions(selected) {
+  const regions = [...new Set(RESORTS.map(r => r.region))].sort();
+  return regions.map(reg => `<optgroup label="${reg}">` +
+    RESORTS.filter(r => r.region === reg).sort((a, b) => a.name.localeCompare(b.name))
+      .map(r => `<option value="${r.id}"${r.id === selected ? " selected" : ""}>${r.name}${r.skiOnly ? " (skiers only)" : ""}</option>`).join("") +
+    `</optgroup>`).join("");
+}
+
+function renderTrips() {
+  $("trips").innerHTML = trips.length ? trips.map((t, i) => `
+    <div class="trip">
+      <select id="trip-resort-${i}" data-i="${i}" data-f="id" aria-label="Trip ${i + 1} resort">${resortOptions(t.id)}</select>
+      <input type="number" id="trip-days-${i}" data-i="${i}" data-f="days" min="1" max="60" value="${t.days}" aria-label="Trip ${i + 1} days">
+      <button type="button" class="x" data-rm="${i}" aria-label="Remove trip ${i + 1}">×</button>
+    </div>`).join("") : '<p class="hint">No trips yet.</p>';
+}
+
+function state(overrides) {
+  const hi = $("home").value;
+  const home = hi === "" ? null : { name: CITIES[hi][0], lat: CITIES[hi][1], lon: CITIES[hi][2] };
+  const maxHrs = parseFloat($("drive").value);
+  const board = $("board").checked;
+  const int = (v, max) => Math.max(0, Math.min(max, parseInt(v, 10) || 0));
+  const s = {
+    home, maxHrs, board,
+    localDays: home ? int($("localDays").value, 150) : 0,
+    holidayDays: int($("holidayDays").value, 60),
+    age: $("age").value,
+    trips: trips.map(t => ({ id: t.id, days: int(t.days, 60) })).filter(t => t.days > 0),
+    near: nearbyResorts(home, maxHrs, board)
+  };
+  return Object.assign(s, overrides || {});
+}
+
+function accessText(r) {
+  return Object.keys(r.a).map(k => TAG[k] + (r.a[k] === "U" ? "" : " " + r.a[k] + "d")).join(" · ");
+}
+
+function mathTable(res, none) {
+  const list = Object.values(res.rows).sort((a, b) => b.days - a.days);
+  const body = list.map(w => {
+    const via = Object.entries(w.by).map(([k, n]) => (res.opt.keys.length > 1 ? `${n} on ${SHORT[k]}` : "")).filter(Boolean).join(", ");
+    const why = [...w.reasons].join(", ");
+    return `<tr>
+      <td>${esc(w.r.name)}</td>
+      <td class="n">${w.days}</td>
+      <td class="n">${w.covered}${via ? ` <span class="chip muted">${via}</span>` : ""}</td>
+      <td class="n">${w.days - w.covered ? `${w.days - w.covered} × ${money(w.r.t)}` : "–"}${why ? ` <span class="chip warn">${esc(why)}</span>` : ""}</td>
+      <td class="n">${money(w.paid)}</td>
+    </tr>`;
+  }).join("");
+  const passLines = res.passes.map(p => `<tr class="sum"><td colspan="4">${SHORT[p.k]} pass</td><td class="n">${money(p.price)}</td></tr>`).join("");
+  const save = none.total - res.total;
+  return `<div class="tablewrap"><table>
+    <thead><tr><th>Resort</th><th class="n">Days</th><th class="n">Covered</th><th class="n">Still buy</th><th class="n">You pay</th></tr></thead>
+    <tbody>${body}
+      <tr class="sum first"><td colspan="4">Day tickets you'd still buy</td><td class="n">${money(res.paid)}</td></tr>
+      ${passLines}
+      <tr class="sum"><td colspan="4">Season total</td><td class="n">${money(res.total)}</td></tr>
+      ${res.opt.keys.length ? `<tr class="sum"><td colspan="4">Same days on day tickets</td><td class="n">${money(none.total)}</td></tr>
+      <tr class="sum"><td colspan="4">${save >= 0 ? "You save" : "You lose"}</td><td class="n">${money(Math.abs(save))}</td></tr>` : ""}
+    </tbody></table></div>`;
+}
+
+function whyLine(best, none, second) {
+  if (!best.opt.keys.length) {
+    return `At ${plural(none.days, "day")}, buying day tickets is cheaper than any pass. ${second ? `The closest pass, ${second.opt.name}, would cost ${money(second.total - best.total)} more.` : ""}`;
+  }
+  const top = Object.values(best.rows).filter(w => w.covered).sort((a, b) => b.covered - a.covered).slice(0, 3);
+  const parts = top.map(w => `${plural(w.covered, "day")} at ${w.r.name} (${money(w.r.t)} each)`);
+  const breakeven = best.covered ? Math.ceil(best.price / (best.coveredValue / best.covered)) : 0;
+  return `It covers ${parts.join(", ")}: ${money(best.coveredValue)} worth of day tickets for a ${money(best.price)} pass. It pays for itself after about ${plural(breakeven, "day")}.` +
+    (second ? ` Next best is ${second.opt.name}, ${money(second.total - best.total)} more.` : "");
+}
+
+let lastResult = null;
+
+function render() {
+  const s = state();
+  $("driveVal").textContent = `${s.maxHrs} hours`;
+  $("localDays").disabled = !s.home;
+
+  const results = rankAll(s);
+  const none = results.find(r => r.opt.k === "none");
+  const best = results[0];
+  const second = results[1];
+  const totalDays = none.days;
+  lastResult = { s, best, none, totalDays, results };
+
+  if (!totalDays) {
+    $("winner").innerHTML = '<p class="hint">Add some local days or a trip to see the math.</p>';
+    $("rank").innerHTML = ""; $("showAll").hidden = true;
+  } else {
+    const save = none.total - best.total;
+    $("winner").innerHTML = `
+      <div class="ticket">
+        <span class="tag">Best value · ${plural(totalDays, "day")}</span>
+        <span class="name">${best.opt.name}</span>
+        <div class="nums">
+          <span><strong>${money(best.total)}</strong><small>season total</small></span>
+          <span><strong>${money(best.perDay)}</strong><small>per day</small></span>
+          ${best.opt.keys.length ? `<span><strong>${money(save)}</strong><small>saved vs day tickets</small></span>` : ""}
+        </div>
+        <p class="why">${whyLine(best, none, second)}</p>
+        ${s.home && s.localDays && !s.near.length ? `<p class="why"><strong>Your ${s.localDays} local days aren't counted:</strong> no resorts are within ${s.maxHrs} hours of ${s.home.name}. Raise the drive time or add them as a trip.</p>` : ""}
+      </div>`;
+
+    const shown = showAll ? results : results.filter((r, i) => i < 5 || r.opt.k === "none");
+    const max = Math.max(...results.map(r => r.total));
+    $("rank").innerHTML = shown.map(r => {
+      const i = results.indexOf(r);
+      const chips = [...r.notes].map(n => `<span class="chip warn">${n}</span>`).join("");
+      const save = none.total - r.total;
+      const detail = r.opt.keys.length
+        ? `${money(r.price)} for the pass${r.passes.length > 1 ? "es" : ""} · covers ${r.covered} of ${r.days} days${r.paidDays ? ` · ${money(r.paid)} in day tickets` : ""} · ${save >= 0 ? `saves ${money(save)}` : `costs ${money(-save)} more than day tickets`}`
+        : `${plural(r.paidDays, "day ticket")} at the prices below`;
+      return `<div class="opt${i === 0 ? " best" : ""}">
+        <div class="opt-head">
+          <span class="pos">${i + 1}</span>
+          <span class="pn">${r.opt.name}${chips}</span>
+          <span class="cost">${money(r.total)} <span class="per">${money(r.perDay)}/day</span></span>
+        </div>
+        <div class="sub2">
+          <div class="barwrap"><div class="barfill" style="width:${max ? (r.total / max * 100).toFixed(1) : 0}%"></div></div>
+          <span class="detail">${detail}</span>
+          <details class="math"${i === 0 ? " open" : ""}><summary>Show the math</summary>${mathTable(r, none)}</details>
+        </div>
+      </div>`;
+    }).join("");
+    $("showAll").hidden = false;
+    $("showAll").textContent = showAll ? "Show fewer options" : `Show all ${results.length} options, including combos`;
+  }
+
+  renderWhatIf(s, best);
+  renderAlts(s, best, results);
+  renderNear(s);
+}
+
+function renderWhatIf(s, best) {
+  if (!s.home) {
+    $("whatif").innerHTML = '<p class="hint">Pick where you live to see how more local days change the answer.</p>';
+    $("breakeven").textContent = ""; return;
+  }
+  const steps = [...new Set([0, 4, 8, 12, 16, 20, 25, 30, 40, s.localDays])].sort((a, b) => a - b);
+  $("whatif").innerHTML = steps.map(d => {
+    const rs = rankAll(state({ localDays: d, holidayDays: Math.min(s.holidayDays, d + s.trips.reduce((a, t) => a + t.days, 0)) }));
+    const b = rs[0];
+    return `<div class="day${d === s.localDays ? " cur" : ""}">
+      <span class="d">${d} local${d === s.localDays ? " · you" : ""}</span>
+      <span class="w">${b.opt.keys.length ? b.opt.keys.map(k => SHORT[k]).join(" + ") : "Day tickets"}</span>
+      <span class="p">${money(b.total)}</span>
+    </div>`;
+  }).join("");
+
+  // Break-even: fewest local days at which the current winner beats day tickets.
+  if (best.opt.keys.length) {
+    let be = null;
+    for (let d = 0; d <= 80; d++) {
+      const st = state({ localDays: d, holidayDays: 0 });
+      const a = evaluate(best.opt, st), n = evaluate(OPTIONS[0], st);
+      if (a.total <= n.total) { be = d; break; }
+    }
+    $("breakeven").textContent = be === null
+      ? `${best.opt.name} doesn't beat day tickets within 80 local days here.`
+      : be === 0
+        ? `${best.opt.name} already beats day tickets on your trips alone, before any local days.`
+        : `${best.opt.name} beats buying day tickets once you ride ${be}+ local days (with your trips, no holidays).`;
+  } else {
+    $("breakeven").textContent = "";
+  }
+}
+
+function renderAlts(s, best, results) {
+  const out = [];
+  const keys = best.opt.keys;
+
+  // 1. Trips the winner doesn't fully cover: suggest similar resorts that it does.
+  for (const trip of s.trips) {
+    const r = BY_ID[trip.id];
+    const w = best.rows[r.id];
+    const uncovered = w ? w.days - w.covered : 0;
+    const coveredBy = Object.keys(r.a).map(k => `${SHORT[k]}${r.a[k] === "U" ? " (unlimited)" : ` (${r.a[k]} days)`}`);
+    if (keys.length && uncovered > 0) {
+      const alts = RESORTS.filter(x => x.id !== r.id && !(s.board && x.skiOnly) &&
+          keys.some(k => x.a[k] === "U" || x.a[k] >= trip.days))
+        .map(x => ({ x, hrs: driveHours(r, x) }))
+        .sort((a, b) => a.hrs - b.hrs).slice(0, 3);
+      out.push(`<div class="alt">
+        <h3>${esc(r.name)}: ${best.opt.name} leaves ${plural(uncovered, "day")} unpaid (${money(w.paid)})</h3>
+        <p class="hint">${esc(r.name)} is on ${coveredBy.join(", ") || "no pass here"}. Trips nearby that ${best.opt.name} covers in full, saving about ${money(w.paid)}:</p>
+        <div class="altlist">${alts.map(a => resortCard(a.x, `${a.hrs.toFixed(1)}h from ${esc(r.name)}`, s)).join("")}</div>
+      </div>`);
+    }
+  }
+
+  // 2. Bigger trips your winner already includes.
+  if (keys.length) {
+    const nearIds = new Set(s.near.map(x => x.r.id));
+    const tripIds = new Set(s.trips.map(t => t.id));
+    const ideas = RESORTS.filter(x => !nearIds.has(x.id) && !tripIds.has(x.id) && !(s.board && x.skiOnly) && keys.some(k => x.a[k]))
+      .sort((a, b) => (b.snow * b.acres) - (a.snow * a.acres)).slice(0, 4);
+    if (ideas.length) out.push(`<div class="alt">
+      <h3>Trip ideas already included with ${best.opt.name}</h3>
+      <p class="hint">The biggest, snowiest resorts on your pass that you aren't using yet.</p>
+      <div class="altlist">${ideas.map(x => resortCard(x, x.region, s)).join("")}</div>
+    </div>`);
+  }
+
+  // 3. Close runners-up and when they'd win.
+  const runners = results.slice(1, 4).filter(r => r.total - best.total <= 300);
+  if (runners.length) out.push(`<div class="alt">
+    <h3>Close alternatives</h3>
+    <p class="hint">${runners.map(r => {
+      const extra = Object.values(r.rows).filter(w => w.covered && !(best.rows[w.r.id] && best.rows[w.r.id].covered >= w.covered)).map(w => w.r.name);
+      return `${r.opt.name} costs ${money(r.total - best.total)} more${extra.length ? ` but covers ${extra.slice(0, 3).join(", ")}` : ""}.`;
+    }).join(" ")}</p>
+  </div>`);
+
+  // 4. Sold-out / skiers-only notes.
+  if (s.board && s.trips.some(t => BY_ID[t.id] && BY_ID[t.id].skiOnly)) out.push(`<p class="hint"><span class="chip warn">skiers only</span> One of your trips is to a skiers-only resort, so those days aren't counted as covered. Turn off "I snowboard" if you ski.</p>`);
+
+  $("alts").innerHTML = out.length ? out.join("") : '<p class="hint">Your pick covers everything you planned. Nothing cheaper to suggest.</p>';
+}
+
+function resortCard(r, where, s) {
+  const off = s && s.board && r.skiOnly;
+  return `<div class="rc${off ? " off" : ""}">
+    <div class="top"><span class="nm">${esc(r.name)}</span><span class="hrs">${where}</span></div>
+    <div class="stats"><span>vert</span>${r.vert.toLocaleString("en-US")} ft <span>size</span>${r.acres.toLocaleString("en-US")} ac <span>snow</span>${r.snow}" <span>day</span>${money(r.t)}</div>
+    <div class="note">${esc(r.note)}${r.skiOnly ? ' <span class="chip warn">skiers only</span>' : ""}</div>
+    <div class="ps">${accessText(r) || "No multi-resort pass"}</div>
+  </div>`;
+}
+
+function renderNear(s) {
+  const by = $("sortBy").value;
+  if (!s.home) { $("near").innerHTML = '<p class="hint">Pick where you live to compare nearby resorts.</p>'; return; }
+  const all = RESORTS.map(r => ({ r, hrs: driveHours(s.home, r) })).filter(x => x.hrs <= s.maxHrs);
+  if (!all.length) { $("near").innerHTML = '<p class="hint">No resorts in range. Try a longer drive, or count these days as trips.</p>'; return; }
+  all.sort((a, b) => by === "hrs" ? a.hrs - b.hrs : by === "t" ? a.r.t - b.r.t : b.r[by] - a.r[by]);
+  $("resTitle").textContent = `${plural(all.length, "resort")} within your drive`;
+  $("near").innerHTML = all.map(x => resortCard(x.r, `${x.hrs.toFixed(1)}h`, s)).join("");
+}
+
+let touched = false;
+function changed() {
+  if (!touched) { touched = true; $("exampleNote").hidden = true; track("Calculator used"); }
+  render();
+}
+
+// events
+$("form").addEventListener("input", e => {
+  const el = e.target;
+  if (el.dataset && el.dataset.i !== undefined) {
+    const t = trips[+el.dataset.i];
+    if (el.dataset.f === "id") t.id = el.value; else t.days = el.value;
+  }
+  changed();
+});
+$("form").addEventListener("submit", e => e.preventDefault());
+$("trips").addEventListener("click", e => {
+  const rm = e.target.closest("[data-rm]");
+  if (!rm) return;
+  trips.splice(+rm.dataset.rm, 1);
+  renderTrips(); changed();
+});
+$("addTrip").addEventListener("click", () => {
+  trips.push({ id: "steamboat", days: 3 });
+  renderTrips(); changed();
+  const last = document.getElementById(`trip-resort-${trips.length - 1}`);
+  if (last) last.focus();
+});
+$("showAll").addEventListener("click", () => { showAll = !showAll; track("Show all options"); render(); });
+$("sortBy").addEventListener("change", () => renderNear(state()));
+document.addEventListener("toggle", e => { if (e.target.matches && e.target.matches("details.math") && e.target.open) track("Math opened"); }, true);
+
+function flash(el, text) {
+  el.textContent = text; el.hidden = false;
+  clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 4000);
+}
+
+$("share").addEventListener("click", () => {
+  if (!lastResult || !lastResult.totalDays) return;
+  const { s, best, none, totalDays } = lastResult;
+  const where = s.home ? ` from ${s.home.name}` : "";
+  const save = none.total - best.total;
+  const text = `My ${totalDays}-day season${where}: ${best.opt.name} wins at ${money(best.total)} (${money(best.perDay)}/day)${best.opt.keys.length ? `, ${money(save)} less than day tickets` : ""}. Run yours: ${location.origin === "null" ? "" : location.href.split("#")[0]}`.trim();
+  track("Result shared", { pass: best.opt.k });
+  const done = () => flash($("shareMsg"), "Copied. Paste it anywhere.");
+  try {
+    navigator.clipboard.writeText(text).then(done, () => flash($("shareMsg"), text));
+  } catch (e) { flash($("shareMsg"), text); }
+});
+
+$("pro").addEventListener("click", () => {
+  track("Pro clicked");
+  $("captureTitle").textContent = "Pro trip planning isn't ready yet. Leave your email and you'll hear when it is.";
+  $("capture").scrollIntoView({ behavior: "smooth", block: "center" });
+  $("email").focus({ preventScroll: true });
+});
+
+$("emailForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const email = $("email").value.trim();
+  if (!email) return;
+  track("Email submitted");
+  if (!EMAIL_ENDPOINT) { flash($("emailMsg"), "Preview only: signups aren't saved yet."); return; }
+  try {
+    const res = await fetch(EMAIL_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify({ email, best: lastResult && lastResult.best.opt.k }) });
+    if (!res.ok) throw new Error(res.status);
+    $("email").value = "";
+    flash($("emailMsg"), "You're on the list. We'll email you before passes stop selling.");
+  } catch (err) {
+    flash($("emailMsg"), "That didn't go through. Check the address and try again.");
+  }
+});
+
+fillHome();
+renderTrips();
+render();
+</script>
