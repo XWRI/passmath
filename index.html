@@ -195,7 +195,7 @@ td .mine { color: var(--good); font-weight: 600; }
 .legend { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 @media (prefers-reduced-motion: no-preference) { .barfill { transition: width .35s ease; } }
 </style>
-<!-- analytics: add your Plausible/Umami snippet here -->
+<script data-goatcounter="https://mysnowmath.goatcounter.com/count" async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
 
@@ -356,7 +356,7 @@ td .mine { color: var(--good); font-weight: 600; }
       <div class="notes">
         <p>Pass prices are the listed 2026–27 adult rates as of October 2026, and they rise until sales close. Day-ticket prices are rough online estimates; walk-up prices are often higher, so real savings are usually bigger. Resort stats are approximate. Drive times are estimated from distance.</p>
         <p>Indy Pass is sold out for 2026–27, so it isn't compared. Check each pass's official site before you buy.</p>
-        <p>PassMath v0.5 · data updated Oct 22, 2026</p>
+        <p>PassMath v0.6 · data updated Oct 22, 2026</p>
       </div>
     </div>
   </div>
@@ -364,7 +364,7 @@ td .mine { color: var(--good); font-weight: 600; }
 
 <script>
 // ---- config: wire these up when deploying ----
-const EMAIL_ENDPOINT = ""; // Formspree form URL; takes both email signups and feedback. Empty = preview, nothing is saved.
+const EMAIL_ENDPOINT = "https://formspree.io/f/xkjodeqz"; // Formspree form URL; takes both email signups and feedback. Empty = preview, nothing is saved.
 
 // Events go to GoatCounter (as paths like "event/calculator-used") when its script is on the page.
 function track(name, props) {
