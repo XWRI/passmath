@@ -159,6 +159,25 @@ tr.sum.first td { border-top: 2px solid var(--line); }
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .msg { font-size: 13px; color: var(--good); }
 .feedback { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 16px; }
+.advice { margin: 0; padding: 0; list-style: none; display: grid; gap: 10px; }
+.advice li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; font-size: 14px; }
+.advice .ic { font-family: var(--mono); font-weight: 600; font-size: 12px; width: 22px; height: 22px; border-radius: 4px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); }
+.advice .ic.w { background: transparent; border: 1px solid var(--warn); color: var(--warn); }
+.advice b { font-weight: 600; }
+.budget { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.bc { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; display: grid; gap: 6px; align-content: start; }
+.bc .top { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; }
+.bc dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 13px; }
+.bc dt { color: var(--muted); }
+.bc dd { margin: 0; text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.bc dd.tot { font-weight: 600; }
+.bc a { color: var(--accent); font-size: 13px; font-weight: 500; }
+.friends { display: grid; gap: 8px; }
+.friend { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 96px) 64px 34px; gap: 8px; align-items: center; }
+.friend input[type=text] { font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; min-width: 0; }
+tr.pick td { background: var(--accent-soft); }
+td .mine { color: var(--good); font-weight: 600; }
+
 .feedback form { display: grid; gap: 8px; }
 .feedback textarea { font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; min-width: 0; resize: vertical; }
 .feedback textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -231,6 +250,13 @@ tr.sum.first td { border-top: 2px solid var(--line); }
       </div>
 
       <label class="check" for="board"><input type="checkbox" id="board" checked> I snowboard (skip skiers-only resorts)</label>
+
+      <div class="field">
+        <span class="lbl">Riding with friends?</span>
+        <p class="hint">Add them to find the one pass the whole group should buy. Same home and trips as you.</p>
+        <div class="friends" id="friends"></div>
+        <div><button type="button" class="btn" id="addFriend">Add a friend</button></div>
+      </div>
     </form>
 
     <div class="col">
@@ -257,6 +283,23 @@ tr.sum.first td { border-top: 2px solid var(--line); }
           </form>
           <span class="msg" id="fbMsg" hidden></span>
         </div>
+      </section>
+
+      <section class="panel" id="planPanel">
+        <h2>Your season plan</h2>
+        <ul class="advice" id="advice"></ul>
+        <div class="field" id="budgetWrap">
+          <span class="lbl">Trip budgets</span>
+          <p class="hint">Lift costs on your best pass plus a rough lodging estimate. Flights and food not included.</p>
+          <div class="budget" id="budget"></div>
+        </div>
+      </section>
+
+      <section class="panel" id="groupPanel" hidden>
+        <h2>Your group</h2>
+        <p class="hint">Everyone on the same pass, so you can ride together. Each person's season cost, using their own age and local days.</p>
+        <div class="tablewrap" id="group"></div>
+        <p class="sumline" id="groupNote"></p>
       </section>
 
       <section class="panel" id="whatifPanel">
@@ -312,7 +355,7 @@ tr.sum.first td { border-top: 2px solid var(--line); }
       <div class="notes">
         <p>Pass prices are the listed 2026–27 adult rates as of October 2026, and they rise until sales close. Day-ticket prices are rough online estimates; walk-up prices are often higher, so real savings are usually bigger. Resort stats are approximate. Drive times are estimated from distance.</p>
         <p>Indy Pass is sold out for 2026–27, so it isn't compared. Check each pass's official site before you buy.</p>
-        <p>PassMath v0.4 · data updated Oct 22, 2026</p>
+        <p>PassMath v0.5 · data updated Oct 22, 2026</p>
       </div>
     </div>
   </div>
@@ -560,6 +603,7 @@ const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
 let trips = [{ id: "jackson", days: 4 }];
+let friends = [];
 let showAll = false;
 
 function fillHome() {
@@ -598,6 +642,7 @@ function state(overrides) {
     holidayDays: int($("holidayDays").value, 60),
     age: $("age").value,
     trips: trips.map(t => ({ id: t.id, days: int(t.days, 60) })).filter(t => t.days > 0),
+    friends: friends.map((f, i) => ({ name: (f.name || "").trim() || `Friend ${i + 1}`, age: f.age, localDays: int(f.localDays, 150) })),
     near: nearbyResorts(home, maxHrs, board)
   };
   return Object.assign(s, overrides || {});
@@ -702,9 +747,170 @@ function render() {
     $("showAll").textContent = showAll ? "Show fewer options" : `Show all ${results.length} options, including combos`;
   }
 
+  renderPlan(s, best, none, second);
+  renderGroup(s, results);
   renderWhatIf(s, best);
   renderAlts(s, best, results);
   renderNear(s);
+  saveToUrl(s);
+}
+
+// ---- season plan ----
+// Epic and Ikon have usually stopped selling in early December. Approximate; shown as "about".
+const SALES_END = new Date("2026-12-07T00:00:00");
+const LODGING_URL = name => "https://www.booking.com/searchresults.html?ss=" + encodeURIComponent(name); // swap for a Stay22/affiliate link later
+function nightly(r) { return r.t >= 250 ? 380 : r.t >= 200 ? 280 : r.t >= 150 ? 200 : 140; }
+
+function renderPlan(s, best, none, second) {
+  const tips = [];
+  const add = (ic, html, warn) => tips.push(`<li><span class="ic${warn ? " w" : ""}">${ic}</span><span>${html}</span></li>`);
+  const keys = best.opt.keys;
+  const weeks = Math.round((SALES_END - Date.now()) / (7 * 864e5));
+
+  if (!none.days) { $("advice").innerHTML = '<li><span class="ic">i</span><span>Add local days or a trip to get a plan.</span></li>'; $("budgetWrap").hidden = true; return; }
+
+  if (keys.length) {
+    add("1", weeks > 0
+      ? `<b>Buy ${best.opt.name} in the next few weeks.</b> Epic and Ikon usually stop selling in early December, about ${plural(weeks, "week")} from now, and prices step up before that.`
+      : `<b>Pass sales have likely closed for this season.</b> Check the official sites; otherwise use this plan for next spring, when early prices are lowest.`);
+  } else {
+    add("1", `<b>Skip the pass this season.</b> At ${plural(none.days, "day")} day tickets are cheaper. Buy tickets online several days ahead; walk-up prices are often much higher than the estimates here.`);
+  }
+
+  // Break-even risk
+  if (keys.length && s.home) {
+    let be = null;
+    for (let d = 0; d <= 80; d++) {
+      const st = state({ localDays: d, holidayDays: 0 });
+      if (evaluate(best.opt, st).total <= evaluate(OPTIONS[0], st).total) { be = d; break; }
+    }
+    if (be !== null && be > 0) add("!", `<b>Your safety margin:</b> if you end up riding fewer than ${be} local days (plus your trips), day tickets would have been cheaper. You planned ${s.localDays}.`, s.localDays - be < 4);
+  }
+
+  // Holidays
+  if (s.holidayDays > 0) {
+    if (best.notes.has("holiday blackout")) {
+      const ok = s.near.filter(x => keys.some(k => x.r.a[k] && !holidayBlocked(k, x.r))).map(x => x.r.name);
+      add("!", `<b>${plural(s.holidayDays, "holiday day")} fall on blackout dates</b> for ${best.opt.name}. ${ok.length ? `Ride ${ok.slice(0, 2).join(" or ")} on those days, which ${ok.length > 1 ? "aren't" : "isn't"} blacked out, or` : "Either"} move those days off Christmas week, MLK and Presidents' weekends.`, true);
+    } else if (keys.some(k => k === "local" || k === "base")) {
+      add("✓", `Your holiday days still work: they land at resorts with no blackout on ${best.opt.name}.`);
+    } else {
+      add("✓", `${best.opt.name} has no holiday blackouts, but holidays are the most crowded days. Go early, or pick the less famous resorts on your pass.`);
+    }
+  }
+
+  // Day limits used
+  const limited = Object.values(best.rows).filter(w => w.covered && keys.some(k => typeof w.r.a[k] === "number"));
+  limited.forEach(w => {
+    const k = keys.find(k => typeof w.r.a[k] === "number");
+    const cap = w.r.a[k];
+    const left = cap - (w.by[k] || 0);
+    if (left > 0) add("→", `You use ${w.by[k] || 0} of your ${cap} ${w.r.name} days on ${SHORT[k]}. <b>${plural(left, "day")} left</b> for another visit at no extra lift cost.`);
+  });
+
+  // Local rotation
+  if (s.home && keys.length) {
+    const used = new Set(Object.values(best.rows).map(w => w.r.id));
+    const others = s.near.filter(x => !used.has(x.r.id) && keys.some(k => x.r.a[k])).slice(0, 3);
+    if (others.length) add("→", `<b>Mix up your local days.</b> ${best.opt.name} also covers ${others.map(x => `${x.r.name} (${x.hrs.toFixed(1)}h, ${x.r.snow}" snow)`).join(", ")}.`);
+  }
+
+  // Close call
+  if (second && keys.length && second.total - best.total <= 200) {
+    const theirs = Object.values(second.rows).filter(w => w.covered && !(best.rows[w.r.id] && best.rows[w.r.id].covered)).map(w => w.r.name);
+    add("?", `<b>It's close:</b> ${second.opt.name} is only ${money(second.total - best.total)} more${theirs.length ? ` and puts you at ${theirs.slice(0, 2).join(" and ")} instead` : ""}. Pick whichever mountains you'd rather ride.`);
+  }
+
+  // Perks and protection
+  if (keys.includes("ikon") || keys.includes("base")) add("+", `Ikon includes ${keys.includes("ikon") ? 15 : 10} discounted Friends & Family tickets for people riding with you. Ikon's optional refund protection costs extra (about ${keys.includes("ikon") ? "$270" : "$185"}) and refunds you if you don't scan by Jan 15.`);
+  if (keys.includes("epic") || keys.includes("local")) add("+", `Epic passes come with discounted Buddy Tickets for friends without a pass, and Epic Coverage refunds for some closures and injuries. Check the terms on epicpass.com.`);
+
+  $("advice").innerHTML = tips.join("");
+
+  // Trip budgets
+  const cards = s.trips.map(t => {
+    const r = BY_ID[t.id];
+    const w = best.rows[r.id];
+    const lift = w ? w.paid : 0;
+    const coveredDays = w ? w.covered : 0;
+    const lodging = nightly(r) * t.days;
+    return `<div class="bc">
+      <div class="top"><span>${esc(r.name)}</span><span class="hrs">${plural(t.days, "day")}</span></div>
+      <dl>
+        <dt>Lift (${coveredDays ? `${coveredDays} on pass` : "day tickets"})</dt><dd>${money(lift)}</dd>
+        <dt>Lodging, ${plural(t.days, "night")} × ~${money(nightly(r))}</dt><dd>${money(lodging)}</dd>
+        <dt>Trip estimate</dt><dd class="tot">${money(lift + lodging)}</dd>
+      </dl>
+      <a href="${LODGING_URL(r.name)}" target="_blank" rel="noopener" data-stay="${r.id}">Find stays near ${esc(r.name)} →</a>
+    </div>`;
+  });
+  $("budgetWrap").hidden = !cards.length;
+  $("budget").innerHTML = cards.join("");
+}
+
+// ---- group ----
+function renderGroup(s, results) {
+  if (!s.friends.length) { $("groupPanel").hidden = true; return; }
+  $("groupPanel").hidden = false;
+  const people = [{ name: "You", age: s.age, localDays: s.localDays }].concat(s.friends);
+  const per = people.map(p => {
+    const st = state({ age: p.age, localDays: s.home ? p.localDays : 0, holidayDays: Math.min(s.holidayDays, p.localDays + s.trips.reduce((a, t) => a + t.days, 0)) });
+    const ev = OPTIONS.map(o => evaluate(o, st));
+    const mine = ev.slice().sort((a, b) => a.total - b.total)[0];
+    return { p, ev, mine };
+  });
+  const rows = OPTIONS.map((o, i) => ({ o, costs: per.map(x => x.ev[i].total), total: per.reduce((a, x) => a + x.ev[i].total, 0) }))
+    .sort((a, b) => a.total - b.total);
+  const pick = rows[0];
+  $("group").innerHTML = `<table>
+    <thead><tr><th>Everyone on</th>${people.map(p => `<th class="n">${esc(p.name)}</th>`).join("")}<th class="n">Group</th></tr></thead>
+    <tbody>${rows.slice(0, 6).map((r, ri) => `<tr${ri === 0 ? ' class="pick"' : ""}><td>${r.o.name}</td>${r.costs.map((c, i) => `<td class="n">${per[i].mine.opt.k === r.o.k ? `<span class="mine">${money(c)}</span>` : money(c)}</td>`).join("")}<td class="n"><b>${money(r.total)}</b></td></tr>`).join("")}</tbody>
+  </table>`;
+  const outliers = per.filter(x => x.mine.opt.k !== pick.o.k);
+  $("groupNote").innerHTML = `<b>Group pick: ${pick.o.name}</b>, ${money(pick.total)} for ${people.length} people. ` +
+    (outliers.length ? outliers.map(x => {
+      const diff = money(x.ev[OPTIONS.indexOf(pick.o)].total - x.mine.total);
+      return x.mine.opt.keys.length
+        ? `${esc(x.p.name)} alone would save ${diff} on ${x.mine.opt.name}, but would be on different mountains some days.`
+        : `${esc(x.p.name)} would save ${diff} by buying day tickets instead, which still lets them ride with you.`;
+    }).join(" ") : "It's also everyone's cheapest option on their own.") +
+    ` Green marks each person's own cheapest option.`;
+}
+
+// ---- shareable links ----
+function saveToUrl(s) {
+  try {
+    const q = new URLSearchParams();
+    q.set("h", $("home").value); q.set("d", $("drive").value); q.set("l", $("localDays").value); q.set("hd", $("holidayDays").value);
+    q.set("a", s.age); q.set("b", s.board ? "1" : "0");
+    q.set("t", trips.map(t => `${t.id}~${t.days}`).join(","));
+    if (friends.length) q.set("f", friends.map(f => `${encodeURIComponent(f.name || "")}~${f.age}~${f.localDays}`).join(","));
+    history.replaceState(null, "", "?" + q.toString());
+  } catch (e) {}
+}
+function loadFromUrl() {
+  try {
+    const q = new URLSearchParams(location.search);
+    if (!q.has("t") && !q.has("h")) return false;
+    const setv = (id, k) => { if (q.has(k)) $(id).value = q.get(k); };
+    setv("home", "h"); setv("drive", "d"); setv("localDays", "l"); setv("holidayDays", "hd"); setv("age", "a");
+    if (q.has("b")) $("board").checked = q.get("b") === "1";
+    trips = (q.get("t") || "").split(",").filter(Boolean).map(x => { const [id, d] = x.split("~"); return BY_ID[id] ? { id, days: +d || 1 } : null; }).filter(Boolean);
+    friends = (q.get("f") || "").split(",").filter(Boolean).slice(0, 5).map(x => { const [n, a, l] = x.split("~"); return { name: decodeURIComponent(n || ""), age: ["a", "m", "y"].includes(a) ? a : "a", localDays: +l || 0 }; });
+    return true;
+  } catch (e) { return false; }
+}
+
+function renderFriends() {
+  $("friends").innerHTML = friends.map((f, i) => `
+    <div class="friend">
+      <input type="text" id="friend-name-${i}" data-fi="${i}" data-f="name" maxlength="20" placeholder="Friend ${i + 1}" value="${esc(f.name)}" aria-label="Friend ${i + 1} name">
+      <select id="friend-age-${i}" data-fi="${i}" data-f="age" aria-label="Friend ${i + 1} age">
+        <option value="a"${f.age === "a" ? " selected" : ""}>31+</option><option value="m"${f.age === "m" ? " selected" : ""}>23–30</option><option value="y"${f.age === "y" ? " selected" : ""}>13–22</option>
+      </select>
+      <input type="number" id="friend-days-${i}" data-fi="${i}" data-f="localDays" min="0" max="150" value="${f.localDays}" aria-label="Friend ${i + 1} local days">
+      <button type="button" class="x" data-frm="${i}" aria-label="Remove friend ${i + 1}">×</button>
+    </div>`).join("");
 }
 
 function renderWhatIf(s, best) {
@@ -822,6 +1028,7 @@ function changed() {
 // events
 $("form").addEventListener("input", e => {
   const el = e.target;
+  if (el.dataset && el.dataset.fi !== undefined) friends[+el.dataset.fi][el.dataset.f] = el.value;
   if (el.dataset && el.dataset.i !== undefined) {
     const t = trips[+el.dataset.i];
     if (el.dataset.f === "id") t.id = el.value; else t.days = el.value;
@@ -855,7 +1062,7 @@ $("share").addEventListener("click", () => {
   const { s, best, none, totalDays } = lastResult;
   const where = s.home ? ` from ${s.home.name}` : "";
   const save = none.total - best.total;
-  const text = `My ${totalDays}-day season${where}: ${best.opt.name} wins at ${money(best.total)} (${money(best.perDay)}/day)${best.opt.keys.length ? `, ${money(save)} less than day tickets` : ""}. Run yours: ${location.origin === "null" ? "" : location.href.split("#")[0]}`.trim();
+  const text = `My ${totalDays}-day season${where}: ${best.opt.name} wins at ${money(best.total)} (${money(best.perDay)}/day)${best.opt.keys.length ? `, ${money(save)} less than day tickets` : ""}. See my plan: ${location.origin === "null" ? "" : location.href.split("#")[0]}`.trim();
   track("Result shared", { pass: best.opt.k });
   const done = () => flash($("shareMsg"), "Copied. Paste it anywhere.");
   try {
@@ -909,8 +1116,26 @@ $("fbForm").addEventListener("submit", async e => {
   }
 });
 
+$("friends").addEventListener("click", e => {
+  const rm = e.target.closest("[data-frm]");
+  if (!rm) return;
+  friends.splice(+rm.dataset.frm, 1);
+  renderFriends(); changed();
+});
+$("addFriend").addEventListener("click", () => {
+  if (friends.length >= 5) return;
+  friends.push({ name: "", age: $("age").value, localDays: $("localDays").value || 10 });
+  track("Friend added");
+  renderFriends(); changed();
+  const f = document.getElementById(`friend-name-${friends.length - 1}`);
+  if (f) f.focus();
+});
+document.addEventListener("click", e => { const a = e.target.closest("[data-stay]"); if (a) track("Lodging clicked", { resort: a.dataset.stay }); });
+
 fillHome();
+if (loadFromUrl()) { $("exampleNote").hidden = true; touched = true; track("Shared link opened"); }
 renderTrips();
+renderFriends();
 render();
 </script>
 </body>
