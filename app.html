@@ -153,6 +153,12 @@ tr.sum.first td { border-top: 2px solid var(--line); }
 
 .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .msg { font-size: 13px; color: var(--good); }
+.feedback { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 16px; }
+.feedback form { display: grid; gap: 8px; }
+.feedback textarea { font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; width: 100%; min-width: 0; resize: vertical; }
+.feedback textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.feedback .btn[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+.feedback form .btn { justify-self: start; }
 .capture { display: grid; gap: 10px; }
 .capture form { display: flex; gap: 8px; flex-wrap: wrap; }
 .capture input[type=email] { flex: 1 1 220px; min-width: 0; font: inherit; color: var(--ink); background: var(--snow); border: 1px solid var(--line); border-radius: 6px; padding: 9px 10px; }
@@ -230,6 +236,19 @@ tr.sum.first td { border-top: 2px solid var(--line); }
           <button type="button" class="btn" id="pro">Plan my trips with Pro</button>
           <span class="msg" id="shareMsg" hidden></span>
         </div>
+        <div class="feedback" id="feedback">
+          <span class="lbl" id="fbTitle">Does this match what you'd actually buy?</span>
+          <div class="actions">
+            <button type="button" class="btn" data-fb="yes" aria-pressed="false">Yes, looks right</button>
+            <button type="button" class="btn" data-fb="no" aria-pressed="false">Not quite</button>
+          </div>
+          <form id="fbForm" hidden>
+            <label class="hint" for="fbText" id="fbPrompt">What's wrong or missing? A resort, a pass, a price, anything.</label>
+            <textarea id="fbText" rows="3" maxlength="2000"></textarea>
+            <button type="submit" class="btn btn-primary">Send feedback</button>
+          </form>
+          <span class="msg" id="fbMsg" hidden></span>
+        </div>
       </section>
 
       <section class="panel" id="whatifPanel">
@@ -285,7 +304,7 @@ tr.sum.first td { border-top: 2px solid var(--line); }
       <div class="notes">
         <p>Pass prices are the listed 2026–27 adult rates as of October 2026, and they rise until sales close. Day-ticket prices are rough online estimates; walk-up prices are often higher, so real savings are usually bigger. Resort stats are approximate. Drive times are estimated from distance.</p>
         <p>Indy Pass is sold out for 2026–27, so it isn't compared. Check each pass's official site before you buy.</p>
-        <p>PassMath v0.3 · data updated Oct 22, 2026</p>
+        <p>PassMath v0.4 · data updated Oct 22, 2026</p>
       </div>
     </div>
   </div>
@@ -293,10 +312,30 @@ tr.sum.first td { border-top: 2px solid var(--line); }
 
 <script>
 // ---- config: wire these up when deploying ----
-const EMAIL_ENDPOINT = ""; // e.g. a Formspree/Buttondown/ConvertKit form URL. Empty = preview, nothing is saved.
+const EMAIL_ENDPOINT = ""; // Formspree form URL; takes both email signups and feedback. Empty = preview, nothing is saved.
 
+// Events go to GoatCounter (as paths like "event/calculator-used") when its script is on the page.
 function track(name, props) {
-  try { if (window.plausible) window.plausible(name, { props: props || {} }); } catch (e) {}
+  try {
+    if (window.goatcounter && window.goatcounter.count) {
+      const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const extra = props && Object.values(props).length ? "/" + Object.values(props).join("-") : "";
+      window.goatcounter.count({ path: "event/" + slug + extra, title: name, event: true });
+    }
+    if (window.plausible) window.plausible(name, { props: props || {} });
+  } catch (e) {}
+}
+
+async function send(payload) {
+  const res = await fetch(EMAIL_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
+    body: JSON.stringify(payload) });
+  if (!res.ok) throw new Error(res.status);
+}
+
+function summary() {
+  if (!lastResult) return {};
+  const { s, best, totalDays } = lastResult;
+  return { home: s.home ? s.home.name : "trips only", localDays: s.localDays, trips: s.trips.map(t => `${t.id}x${t.days}`).join(","), totalDays, best: best.opt.k };
 }
 
 // ---- data ----
@@ -830,13 +869,35 @@ $("emailForm").addEventListener("submit", async e => {
   track("Email submitted");
   if (!EMAIL_ENDPOINT) { flash($("emailMsg"), "Preview only: signups aren't saved yet."); return; }
   try {
-    const res = await fetch(EMAIL_ENDPOINT, { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ email, best: lastResult && lastResult.best.opt.k }) });
-    if (!res.ok) throw new Error(res.status);
+    await send(Object.assign({ type: "signup", email }, summary()));
     $("email").value = "";
     flash($("emailMsg"), "You're on the list. We'll email you before passes stop selling.");
   } catch (err) {
     flash($("emailMsg"), "That didn't go through. Check the address and try again.");
+  }
+});
+
+let fbVote = "";
+document.querySelectorAll("[data-fb]").forEach(b => b.addEventListener("click", () => {
+  fbVote = b.dataset.fb;
+  document.querySelectorAll("[data-fb]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  track("Feedback vote", { vote: fbVote });
+  $("fbPrompt").textContent = fbVote === "yes" ? "Great. Anything you'd add or change?" : "What's wrong or missing? A resort, a pass, a price, anything.";
+  $("fbForm").hidden = false;
+  $("fbText").focus();
+}));
+$("fbForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = $("fbText").value.trim();
+  if (!text) { flash($("fbMsg"), "Type a note first, even a few words."); return; }
+  track("Feedback sent", { vote: fbVote || "none" });
+  if (!EMAIL_ENDPOINT) { flash($("fbMsg"), "Preview only: feedback isn't saved yet."); return; }
+  try {
+    await send(Object.assign({ type: "feedback", vote: fbVote, message: text }, summary()));
+    $("fbText").value = ""; $("fbForm").hidden = true;
+    flash($("fbMsg"), "Thanks. This goes straight to the person building PassMath.");
+  } catch (err) {
+    flash($("fbMsg"), "That didn't send. Try again in a moment.");
   }
 });
 
