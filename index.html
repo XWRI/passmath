@@ -250,6 +250,15 @@ td .mine { color: var(--good); font-weight: 600; }
         </select>
       </div>
 
+      <div class="field">
+        <label for="ownResort">Compare a single-resort season pass</label>
+        <div class="row2">
+          <select id="ownResort"></select>
+          <input type="number" id="ownPrice" min="0" max="5000" placeholder="Price, $" aria-label="Single-resort pass price">
+        </div>
+        <p class="hint">Optional. For example a Killington, Bachelor or Loveland pass. Enter its price and it's ranked alongside the big passes.</p>
+      </div>
+
       <label class="check" for="board"><input type="checkbox" id="board" checked> I snowboard (skip skiers-only resorts)</label>
 
       <div class="field">
@@ -356,7 +365,7 @@ td .mine { color: var(--good); font-weight: 600; }
       <div class="notes">
         <p>Pass prices are the listed 2026–27 adult rates as of October 2026, and they rise until sales close. Day-ticket prices are rough online estimates; walk-up prices are often higher, so real savings are usually bigger. Resort stats are approximate. Drive times are estimated from distance.</p>
         <p>Indy Pass is sold out for 2026–27, so it isn't compared. Check each pass's official site before you buy.</p>
-        <p>PassMath v0.6 · data updated Oct 22, 2026</p>
+        <p>PassMath v0.8 · data updated Oct 22, 2026</p>
       </div>
     </div>
   </div>
@@ -400,7 +409,7 @@ const CITIES = [
   ["Minneapolis, MN",44.98,-93.27],["Chicago, IL",41.88,-87.63],["Detroit, MI",42.33,-83.05],["Pittsburgh, PA",40.44,-80.0],
   ["Dallas, TX",32.78,-96.8],["Austin, TX",30.27,-97.74],["Houston, TX",29.76,-95.37],["Atlanta, GA",33.75,-84.39],
   ["Washington, DC",38.91,-77.04],["Philadelphia, PA",39.95,-75.17],["New York, NY",40.71,-74.01],["Boston, MA",42.36,-71.06],
-  ["Burlington, VT",44.48,-73.21],["Portland, ME",43.66,-70.26],["Toronto, ON",43.65,-79.38],["Montreal, QC",45.5,-73.57]
+  ["Baltimore, MD",39.29,-76.61],["Cleveland, OH",41.50,-81.69],["Columbus, OH",39.96,-83.0],["St. Louis, MO",38.63,-90.2],["Kansas City, MO",39.1,-94.58],["Indianapolis, IN",39.77,-86.16],["Burlington, VT",44.48,-73.21],["Portland, ME",43.66,-70.26],["Toronto, ON",43.65,-79.38],["Montreal, QC",45.5,-73.57]
 ];
 
 // a: access per pass. "U" = unlimited, number = day limit. Missing = not on that pass.
@@ -431,6 +440,18 @@ const RESORTS = [
   R("afton","Afton Alps","Midwest",44.858,-92.789,79,{epic:"U",local:"U"},[350,300,50,"Twin Cities local hill with parks"]),
   R("wilmot","Wilmot","Midwest",42.507,-88.183,79,{epic:"U",local:"U"},[230,120,40,"Chicago's closest hill, good park"]),
   R("mtbrighton","Mt. Brighton","Midwest",42.540,-83.810,69,{epic:"U",local:"U"},[230,130,40,"Detroit local hill, night riding"]),
+  R("whitetail","Whitetail","Pennsylvania",39.741,-77.933,89,{epic:"U",local:"U"},[935,125,40,"Closest real pitch to DC and Baltimore"]),
+  R("liberty","Liberty Mountain","Pennsylvania",39.763,-77.375,89,{epic:"U",local:"U"},[620,100,30,"DC and Baltimore night riding"]),
+  R("roundtop","Roundtop","Pennsylvania",40.111,-76.927,79,{epic:"U",local:"U"},[600,100,30,"Harrisburg-area park hill"]),
+  R("jackfrost","Jack Frost and Big Boulder","Pennsylvania",41.106,-75.653,79,{epic:"U",local:"U"},[600,120,50,"Poconos parks, NYC and Philly day trip"]),
+  R("hiddenvalleypa","Hidden Valley and Laurel","Pennsylvania",40.050,-79.247,79,{epic:"U",local:"U"},[900,110,140,"Laurel Highlands, Pittsburgh day trip"]),
+  R("crotched","Crotched Mountain","New Hampshire",42.999,-71.874,79,{epic:"U",local:"U"},[1000,100,60,"Closest to Boston, late-night riding"]),
+  R("bostonmills","Boston Mills and Brandywine","Midwest",41.264,-81.561,69,{epic:"U",local:"U"},[264,88,60,"Cleveland and Akron local hills"]),
+  R("alpinevalleyoh","Alpine Valley (Ohio)","Midwest",41.507,-81.209,59,{epic:"U",local:"U"},[240,72,120,"Lake-effect snow east of Cleveland"]),
+  R("madriver","Mad River Mountain","Midwest",40.316,-83.677,69,{epic:"U",local:"U"},[300,144,40,"Columbus and Dayton local hill"]),
+  R("paoli","Paoli Peaks","Midwest",38.570,-86.509,69,{epic:"U",local:"U"},[300,65,20,"Louisville and Indianapolis local hill"]),
+  R("snowcreek","Snow Creek","Midwest",39.429,-94.886,59,{epic:"U",local:"U"},[300,25,15,"Kansas City local hill"]),
+  R("hiddenvalleymo","Hidden Valley (Missouri)","Midwest",38.547,-90.663,59,{epic:"U",local:"U"},[310,22,15,"St. Louis local hill"]),
   // Alterra (Ikon unlimited)
   R("winterpark","Winter Park","Colorado",39.887,-105.763,209,{ikon:"U",base:"U"},[3060,3081,326,"Mary Jane bumps, big parks, no I-70 tunnel"]),
   R("copper","Copper Mountain","Colorado",39.502,-106.151,209,{ikon:"U",base:"U"},[2738,2507,305,"Terrain sorted by ability, Woodward park"]),
@@ -537,7 +558,7 @@ function evaluate(opt, s) {
   function take(r, holiday) {
     if (s.board && r.skiOnly) { reasons.push("skiers only"); return false; }
     for (const k of opt.keys) {
-      const v = r.a[k];
+      const v = acc(k, r, s);
       if (!v) continue;
       if (holiday && holidayBlocked(k, r)) { reasons.push("holiday blackout"); continue; }
       if (v !== "U") {
@@ -577,7 +598,7 @@ function evaluate(opt, s) {
   if (near.length && s.localDays > 0) {
     const cheapest = near.reduce((m, x) => x.r.t < m.t ? x.r : m, near[0].r);
     // Prefer unlimited resorts (nearest first), then limited ones, so day limits are saved for when they're needed.
-    const has = (x, test) => opt.keys.some(k => test(x.r.a[k]));
+    const has = (x, test) => opt.keys.some(k => test(acc(k, x.r, s)));
     const order = near.filter(x => has(x, v => v === "U")).concat(near.filter(x => !has(x, v => v === "U") && has(x, v => typeof v === "number")));
     for (let d = 0; d < s.localDays; d++) {
       const hol = d < hLocal;
@@ -588,14 +609,27 @@ function evaluate(opt, s) {
     }
   }
 
-  const passes = opt.keys.map(k => ({ k, price: PRICE[k](s.age) }));
+  const passes = opt.keys.map(k => ({ k, price: k === "own" ? s.own.price : PRICE[k](s.age) }));
   const price = passes.reduce((a, p) => a + p.price, 0);
   const total = price + paid;
   const days = covered + paidDays;
   return { opt, passes, price, paid, paidDays, covered, coveredValue, total, days, perDay: days ? total / days : 0, rows, notes };
 }
 
-function rankAll(s) { return OPTIONS.map(o => evaluate(o, s)).sort((a, b) => a.total - b.total || a.opt.keys.length - b.opt.keys.length); }
+// Access level of pass k at resort r. "own" is the user's single-resort pass.
+function acc(k, r, s) { return k === "own" ? (s.own && s.own.id === r.id ? "U" : undefined) : r.a[k]; }
+function ownOptions(s) {
+  if (!s.own || !BY_ID[s.own.id]) return [];
+  const n = BY_ID[s.own.id].name;
+  SHORT.own = `${n} pass`;
+  return [
+    { k: "own", keys: ["own"], name: `${n} season pass` },
+    { k: "own+local", keys: ["own", "local"], name: `${n} pass + Epic Local` },
+    { k: "own+base", keys: ["own", "base"], name: `${n} pass + Ikon Base` },
+    { k: "own+mc", keys: ["own", "mc"], name: `${n} pass + Mountain Collective` }
+  ];
+}
+function rankAll(s) { return OPTIONS.concat(ownOptions(s)).map(o => evaluate(o, s)).sort((a, b) => a.total - b.total || a.opt.keys.length - b.opt.keys.length); }
 
 // ---- UI ----
 const $ = id => document.getElementById(id);
@@ -644,6 +678,7 @@ function state(overrides) {
     age: $("age").value,
     trips: trips.map(t => ({ id: t.id, days: int(t.days, 60) })).filter(t => t.days > 0),
     friends: friends.map((f, i) => ({ name: (f.name || "").trim() || `Friend ${i + 1}`, age: f.age, localDays: int(f.localDays, 150) })),
+    own: ($("ownResort").value && int($("ownPrice").value, 5000) > 0) ? { id: $("ownResort").value, price: int($("ownPrice").value, 5000) } : null,
     near: nearbyResorts(home, maxHrs, board)
   };
   return Object.assign(s, overrides || {});
@@ -791,7 +826,7 @@ function renderPlan(s, best, none, second) {
   // Holidays
   if (s.holidayDays > 0) {
     if (best.notes.has("holiday blackout")) {
-      const ok = s.near.filter(x => keys.some(k => x.r.a[k] && !holidayBlocked(k, x.r))).map(x => x.r.name);
+      const ok = s.near.filter(x => keys.some(k => acc(k, x.r, s) && !holidayBlocked(k, x.r))).map(x => x.r.name);
       add("!", `<b>${plural(s.holidayDays, "holiday day")} fall on blackout dates</b> for ${best.opt.name}. ${ok.length ? `Ride ${ok.slice(0, 2).join(" or ")} on those days, which ${ok.length > 1 ? "aren't" : "isn't"} blacked out, or` : "Either"} move those days off Christmas week, MLK and Presidents' weekends.`, true);
     } else if (keys.some(k => k === "local" || k === "base")) {
       add("✓", `Your holiday days still work: they land at resorts with no blackout on ${best.opt.name}.`);
@@ -812,7 +847,7 @@ function renderPlan(s, best, none, second) {
   // Local rotation
   if (s.home && keys.length) {
     const used = new Set(Object.values(best.rows).map(w => w.r.id));
-    const others = s.near.filter(x => !used.has(x.r.id) && keys.some(k => x.r.a[k])).slice(0, 3);
+    const others = s.near.filter(x => !used.has(x.r.id) && keys.some(k => acc(k, x.r, s))).slice(0, 3);
     if (others.length) add("→", `<b>Mix up your local days.</b> ${best.opt.name} also covers ${others.map(x => `${x.r.name} (${x.hrs.toFixed(1)}h, ${x.r.snow}" snow)`).join(", ")}.`);
   }
 
@@ -884,6 +919,7 @@ function saveToUrl(s) {
     const q = new URLSearchParams();
     q.set("h", $("home").value); q.set("d", $("drive").value); q.set("l", $("localDays").value); q.set("hd", $("holidayDays").value);
     q.set("a", s.age); q.set("b", s.board ? "1" : "0");
+    if (s.own) q.set("o", `${s.own.id}~${s.own.price}`);
     q.set("t", trips.map(t => `${t.id}~${t.days}`).join(","));
     if (friends.length) q.set("f", friends.map(f => `${encodeURIComponent(f.name || "")}~${f.age}~${f.localDays}`).join(","));
     history.replaceState(null, "", "?" + q.toString());
@@ -896,6 +932,7 @@ function loadFromUrl() {
     const setv = (id, k) => { if (q.has(k)) $(id).value = q.get(k); };
     setv("home", "h"); setv("drive", "d"); setv("localDays", "l"); setv("holidayDays", "hd"); setv("age", "a");
     if (q.has("b")) $("board").checked = q.get("b") === "1";
+    if (q.has("o")) { const [oid, op] = q.get("o").split("~"); if (BY_ID[oid]) { $("ownResort").value = oid; $("ownPrice").value = +op || ""; } }
     trips = (q.get("t") || "").split(",").filter(Boolean).map(x => { const [id, d] = x.split("~"); return BY_ID[id] ? { id, days: +d || 1 } : null; }).filter(Boolean);
     friends = (q.get("f") || "").split(",").filter(Boolean).slice(0, 5).map(x => { const [n, a, l] = x.split("~"); return { name: decodeURIComponent(n || ""), age: ["a", "m", "y"].includes(a) ? a : "a", localDays: +l || 0 }; });
     return true;
@@ -1133,6 +1170,7 @@ $("addFriend").addEventListener("click", () => {
 });
 document.addEventListener("click", e => { const a = e.target.closest("[data-stay]"); if (a) track("Lodging clicked", { resort: a.dataset.stay }); });
 
+$("ownResort").innerHTML = '<option value="">None</option>' + RESORTS.slice().sort((a, b) => a.name.localeCompare(b.name)).map(r => `<option value="${r.id}">${r.name}</option>`).join("");
 fillHome();
 if (loadFromUrl()) { $("exampleNote").hidden = true; touched = true; track("Shared link opened"); }
 renderTrips();
